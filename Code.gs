@@ -1,5 +1,5 @@
 /** Copyright Martin Hawksey 2020
- * Modified by Min-Yen KAN (2020) <kanmy@comp.nus.edu.sg>
+ * Modified by Min-Yen KAN (2020) <knmnyn@comp.nus.edu.sg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License.  You may obtain a copy
@@ -30,6 +30,7 @@ const SEARCH_RESTRICTIONS_COL = "Search Restrictions";
 const SEARCH_SUBJECT_LINE_COL = "Search Subject Line";
 const TEMPLATE_SUBJECT_LINE_COL = "Template Subject Line";
 const SENDER_NAME_COL = "Sender Name";
+const SENDER_ALIAS_COL = "From Email Alias";
 const REPLY_TO_COL = "Reply To";
 const BCC_COL = "BCC";                     // [BUG] doesn't work
 const CC_COL = "CC";
@@ -118,6 +119,7 @@ function sendEmailsFromMetadata(metadataSheet = SpreadsheetApp.getActive().getSh
     var templateSubjectLine = row[metaheads.indexOf(TEMPLATE_SUBJECT_LINE_COL)];
     var debugTo = "" + row[metaheads.indexOf(DEBUG_TO_COL)];
     var name = row[metaheads.indexOf(SENDER_NAME_COL)];
+    var alias = row[metaheads.indexOf(SENDER_ALIAS_COL)];
     var bcc = row[metaheads.indexOf(BCC_COL)];
     var replyTo = row[metaheads.indexOf(REPLY_TO_COL)];
     var cc = row[metaheads.indexOf(CC_COL)];
@@ -152,6 +154,7 @@ function sendEmailsFromMetadata(metadataSheet = SpreadsheetApp.getActive().getSh
         msgOptionsHash['attachments'] = emailTemplate.attachments;          
         if (name != "") { msgOptionsHash['name'] = name; } 
         if (cc != "") { msgOptionsHash['cc'] = cc; } 
+        if (alias != "") { msgOptionsHash['from'] = alias; } 
         // if (bcc != "") { msgOptionsHash['bcc'] = bcc; } 
         if (replyTo != "") { msgOptionsHash['replyTo'] = replyTo; } 
 
@@ -208,11 +211,8 @@ function sendEmailsFromMetadata(metadataSheet = SpreadsheetApp.getActive().getSh
     // used to record sent emails
     const out = [];
     const metadataOut = [];
- 
-    // cache (B)CC data, rewrite every time to allow append from global METADATA values
-    const cachedCC = msgOptionsHash['cc']; 
-    const cachedBCC = msgOptionsHash['bcc']; 
-    
+    const cachedCC = msgOptionsHash['cc']; // cache CC data, as it could be rewritten every time.
+
     var numSuccess = 0;
     var numTotal = 0;
     var debugMsg = "";
@@ -228,24 +228,23 @@ function sendEmailsFromMetadata(metadataSheet = SpreadsheetApp.getActive().getSh
           if (debug) { 
             subjectString = "[DEBUGGING] " + subjectString; 
             debugMsg = "Debugging Run\n";
-            SpreadsheetApp.getUi().alert(rowIdx + " CC: " + msgOptionsHash['cc'] + "\nlocalCC: " + row[CC_COL]);        
           }
           
+//          SpreadsheetApp.getUi().alert("CC: " + msgOptionsHash['cc'] + "\nlocalCC: " + row[CC_COL]);     
+
           // See documentation for message options: https://developers.google.com/apps-script/reference/mail/mail-app#advanced-parameters_1
-          delete msgOptionsHash['cc']; // reset CC:s
-          delete msgOptionsHash['bcc']; // reset BCC:s
           msgOptionsHash['htmlBody'] = msgObj.html;
           msgOptionsHash['attachments'] = emailTemplate.attachments;          
-          if (row[SENDER_NAME_COL] != "") { msgOptionsHash['name'] = row[SENDER_NAME_COL]; } 
+          // if (row[SENDER_NAME_COL] != "" && row[SENDER_NAME_COL] != undefined) { msgOptionsHash['name'] = row[SENDER_NAME_COL]; } 
           if (row[REPLY_TO_COL] != "") { msgOptionsHash['replyTo'] = row[REPLY_TO_COL]; } 
+        //  SpreadsheetApp.getUi().alert("SENDER_NAME_COL: " + SENDER_NAME_COL + "\row[SENDER_NAME_COL]: " + row[SENDER_NAME_COL]);     
+
+          msgOptionsHash['cc'] = cachedCC; // reset CC from metadata sheet
           if (row[CC_COL] != "") { 
-            if (msgOptionsHash['cc'] != undefined) { msgOptionsHash['cc'] = cachedCC + ", " + row[CC_COL]; } // append to existing 
+            if (msgOptionsHash['cc'] != "") { msgOptionsHash['cc'] = msgOptionsHash['cc'] + ", " + row[CC_COL]; } // append
             else { msgOptionsHash['cc'] = row[CC_COL]; } // overwrite
           }
-          if (row[BCC_COL] != "") { 
-            if (msgOptionsHash['bcc'] != undefined) { msgOptionsHash['bcc'] = cachedBCC + ", " + row[CBC_COL]; } // append to existing 
-            else { msgOptionsHash['bcc'] = row[BCC_COL]; } // overwrite
-          }
+          // if (bcc != "") { msgOptionsHash['bcc'] = bcc; } 
 
           // Use MailApp (over GmailApp) that allows sending of Emojis.  
           // See https://developers.google.com/apps-script/reference/mail/mail-app
@@ -255,8 +254,8 @@ function sendEmailsFromMetadata(metadataSheet = SpreadsheetApp.getActive().getSh
              } 
              debugCount = 1;
           } else {
-            // GmailApp.sendEmail(row[RECIPIENT_EMAIL_ADDRESS_COL], subjectString, msgObj.text, msgOptionsHash)
-            MailApp.sendEmail(row[RECIPIENT_EMAIL_ADDRESS_COL], subjectString, msgObj.text, msgOptionsHash)
+            GmailApp.sendEmail(row[RECIPIENT_EMAIL_ADDRESS_COL], subjectString, msgObj.text, msgOptionsHash)
+            // MailApp.sendEmail(row[RECIPIENT_EMAIL_ADDRESS_COL], subjectString, msgObj.text, msgOptionsHash)
           }
         
           // modify cell to record email sent date
